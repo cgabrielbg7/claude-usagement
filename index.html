@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
+<title></title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gbg:      rgba(14, 14, 20, 0.84);
+  --gbord:    rgba(255,255,255,.10);
+  --blur:     blur(28px) saturate(200%);
+  --text:     #ebebeb;
+  --sub:      #8a8a96;
+  --muted:    #44444c;
+  --blue:     #4d9de0;
+  --green:    #4ade80;
+  --yellow:   #f59e0b;
+  --red:      #ef4444;
+  --track:    rgba(255,255,255,.07);
+  --sep:      rgba(255,255,255,.06);
+  --r:        14px;
+  --cbg:      rgba(16, 16, 24, 0.82);
+  --cbord:    rgba(255,255,255,.14);
+  --chov:     rgba(22, 22, 32, 0.88);
+  --btn-hover: rgba(255,255,255,.08);
+  --ctxbg:    rgba(18, 18, 26, 0.97);
+}
+
+[data-theme="light"] {
+  --gbg:      rgba(250, 250, 255, 0.88);
+  --gbord:    rgba(0,0,0,.09);
+  --blur:     blur(28px) saturate(160%);
+  --text:     #16161e;
+  --sub:      #6b6b7e;
+  --muted:    #6e6e80;
+  --track:    rgba(0,0,0,.09);
+  --sep:      rgba(0,0,0,.07);
+  --cbg:      rgba(248, 248, 255, 0.92);
+  --cbord:    rgba(0,0,0,.11);
+  --chov:     rgba(238, 238, 250, 0.96);
+  --btn-hover: rgba(0,0,0,.07);
+  --ctxbg:    rgba(250, 250, 255, 0.98);
+}
+
+html, body {
+  width: 290px; height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass panel — translucent tint (no backdrop-filter blur: the blur produces a
+   white halo at the window's top edge when the window is unfocused on Windows,
+   which can't be removed while the blur is present). You still see the desktop
+   through the translucent background, so it still reads as glass. */
+.glass {
+  background: var(--gbg);
+  border: 1px solid var(--gbord);
+}
+
+/* ── Page layout ────────────────────────────────── */
+/* compact is absolute at the bottom; expanded panel sits above it */
+#compact {
+  position: fixed;
+  /* When collapsed the pill fills the whole window (top:0 → bottom:0). This leaves
+     no transparent strip above it, so the backdrop-filter has no empty top edge to
+     produce the white halo that appears when the window is unfocused on Windows.
+     When expanded, the body.expanded rule pins it back to 52px at the bottom. */
+  top: 0; bottom: 0; left: 0; width: 290px;
+  height: auto;
+  border-radius: var(--r);
+  display: flex; align-items: center;
+  padding: 0 10px 0 12px; gap: 8px;
+  cursor: grab;
+  background: var(--cbg);
+  border: 1px solid var(--cbord);
+  transition: background .2s;
+}
+body.expanded #compact { top: auto; height: 52px; }
+#compact:active { cursor: grabbing; }
+#compact:hover  { background: var(--chov); }
+
+#expanded {
+  position: fixed;
+  bottom: 58px; left: 0; width: 290px;
+  border-radius: var(--r);
+  overflow: hidden;
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(14px) scale(0.97);
+  transition: opacity .3s ease, transform .45s cubic-bezier(0.22, 1.8, 0.36, 1);
+}
+#expanded.show { opacity: 1; transform: translateY(0) scale(1); }
+
+
+/* ── Expanded panel ──────────────────────────────── */
+#ph {                                          /* panel header — also a drag zone */
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px 9px 13px;
+  border-bottom: 1px solid var(--sep);
+  flex-shrink: 0;
+  cursor: grab;
+}
+#ph:active { cursor: grabbing; }
+#ph-logo { width: 15px; height: 15px; flex-shrink: 0; }
+#ph-title {
+  font-size: 12.5px; font-weight: 700; flex: 1; letter-spacing: .06em;
+  background: linear-gradient(90deg, #818cf8, #38bdf8);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+#ph-close {
+  cursor: pointer; color: #f87171; font-size: 11px;
+  padding: 4px 5px; border-radius: 5px;
+  transition: color .15s, background .15s;
+  line-height: 1;
+}
+#ph-close:hover { color: #ef4444; background: rgba(239,68,68,.12); }
+
+#ur {                                          /* user row */
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 13px 7px;
+  border-bottom: 1px solid var(--sep);
+}
+#ui { display: flex; flex-direction: column; gap: 1px; overflow: hidden; max-width: 200px; }
+#un { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ue { font-size: 9.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#pb {                                          /* plan badge */
+  font-size: 9px; font-weight: 700; letter-spacing: .07em;
+  padding: 2px 7px; border-radius: 4px; flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+/* Model row */
+#md {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 13px 7px;
+  border-bottom: 1px solid var(--sep);
+}
+#md-l { font-size: 10px; font-weight: 600; color: var(--sub); letter-spacing: .04em; }
+#md-v {
+  font-size: 11.5px; font-weight: 700;
+  background: linear-gradient(90deg, #818cf8, #38bdf8);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Metric rows */
+.mr { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 10px; }
+.as { flex-shrink: 0; width: 52px; height: 52px; }
+.at { fill: none; stroke: var(--track); stroke-width: 4.5; }
+.af { fill: none; stroke-width: 4.5; stroke-linecap: round;
+      transition: stroke-dashoffset .65s cubic-bezier(.4,0,.2,1), stroke .3s; }
+.al { fill: var(--text); font-size: 9px; font-weight: 700;
+      font-family: 'Segoe UI', sans-serif; dominant-baseline: central; }
+.mi { display: flex; flex-direction: column; gap: 2px; }
+.mt { font-size: 11px; font-weight: 600; }
+.ms { font-size: 10px; color: var(--sub); }
+.sp { height: 1px; background: var(--sep); margin: 0 10px; }
+
+/* Extra usage */
+#ex { padding: 7px 13px 8px; border-top: 1px solid var(--sep); }
+#ex-r { display: flex; justify-content: space-between; margin-bottom: 5px; }
+#ex-l { font-size: 10px; font-weight: 600; }
+#ex-v { font-size: 10px; color: var(--sub); }
+#ex-bg { height: 5px; background: var(--track); border-radius: 3px; overflow: hidden; }
+#ex-f  { position: relative;
+         height: 100%; border-radius: 3px;
+         overflow: hidden;
+         transition: width .65s cubic-bezier(.4,0,.2,1); }
+#ex-f::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 0; width: 60%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,.28), transparent);
+  animation: bar-shimmer 3s ease-in-out infinite;
+}
+@keyframes bar-shimmer {
+  0%   { transform: translateX(-200%); }
+  100% { transform: translateX(350%); }
+}
+
+/* Panel footer */
+#pf { display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 12px 7px; border-top: 1px solid var(--sep); }
+#pf-s { font-size: 9.5px; color: var(--muted); }
+#pf-r { cursor: pointer; font-size: 14px; color: var(--blue);
+        padding: 2px 5px; border-radius: 4px; transition: background .15s; line-height: 1; }
+#pf-r:hover { background: rgba(77,157,224,.12); }
+#pf-r.spin  { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse-warn  { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes pulse-crit  { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes arc-shimmer { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.22); } }
+@keyframes arc-fill-glow {
+  0%   { filter: brightness(2.2); }
+  40%  { filter: brightness(1.6); }
+  100% { filter: brightness(1.0); }
+}
+.warning  { animation: pulse-warn 2.4s ease-in-out infinite; }
+.critical { animation: pulse-crit 1.4s ease-in-out infinite; }
+
+/* ── Compact pill ────────────────────────────────── */
+#ca { flex-shrink: 0; width: 36px; height: 36px; }
+.ct { fill: none; stroke: var(--track); stroke-width: 3.5; }
+.cf { fill: none; stroke-width: 3.5; stroke-linecap: round;
+      transition: stroke-dashoffset .65s cubic-bezier(.4,0,.2,1), stroke .3s; }
+.cl { fill: var(--text); font-size: 8px; font-weight: 700;
+      font-family: 'Segoe UI', sans-serif; dominant-baseline: central; }
+
+#ct { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+#cl { font-size: 10px; font-weight: 600; }
+#cr { font-size: 9.5px; color: var(--sub); }
+
+#cb { display: flex; align-items: center; gap: 4px; }
+.cb {
+  cursor: pointer; color: var(--muted);
+  padding: 4px; border-radius: 5px;
+  transition: color .15s, background .15s;
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+}
+.cb:hover { color: var(--text); background: var(--btn-hover); }
+
+/* Pin icon: filled = pinned (blue), outline = unpinned (muted) */
+#cp.pinned { color: var(--blue); }
+/* Close button always red */
+#cc       { color: #f87171; }
+#cc:hover { color: #ef4444; background: rgba(239,68,68,.10); }
+
+/* ── Right-click context menu ── */
+#ctx {
+  position: fixed; display: none; flex-direction: column;
+  min-width: 148px; padding: 4px;
+  background: var(--ctxbg);
+  border: 1px solid var(--cbord); border-radius: 8px;
+  z-index: 9999;
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+}
+.ctx-item {
+  padding: 7px 13px; font-size: 11.5px; font-weight: 500;
+  color: var(--text); cursor: pointer; border-radius: 5px;
+  transition: background .12s;
+}
+.ctx-item:hover { background: var(--btn-hover); }
+.ctx-sep { height: 1px; background: var(--sep); margin: 3px 4px; }
+</style>
+</head>
+<body>
+
+<!-- Gradient defs shared across all SVGs in the document -->
+<svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <defs>
+    <!-- One gradient per arc so each can shift color independently -->
+    <linearGradient id="arc-grad-0" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="50%"  stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="arc-grad-1" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="50%"  stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="arc-grad-2" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="50%"  stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="arc-grad-c" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#818cf8"/>
+      <stop offset="50%"  stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- ── Expanded panel ────────────────────────────── -->
+<div id="expanded" class="glass">
+
+  <!-- Header -->
+  <div id="ph">
+    <svg id="ph-logo" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9.5" stroke="#4d9de0" stroke-width="1.6"/>
+      <path d="M8.5 12 Q10.5 7.5 12 12 Q13.5 16.5 15.5 12"
+            stroke="#4d9de0" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+    </svg>
+    <span id="ph-title">Claude Usagement</span>
+    <span id="ph-close">✕</span>
+  </div>
+
+  <!-- User row -->
+  <div id="ur">
+    <div id="ui">
+      <span id="un">–</span>
+      <span id="ue">–</span>
+    </div>
+    <span id="pb">–</span>
+  </div>
+
+  <!-- Model row -->
+  <div id="md">
+    <span id="md-l">Modelo</span>
+    <span id="md-v">–</span>
+  </div>
+
+  <!-- 5-hour limit -->
+  <div class="mr">
+    <svg class="as" viewBox="0 0 52 52">
+      <circle class="at" cx="26" cy="26" r="20"/>
+      <circle id="a0" class="af" cx="26" cy="26" r="20"
+              stroke="url(#arc-grad-0)" stroke-dasharray="125.66" stroke-dashoffset="125.66"
+              transform="rotate(-90 26 26)"/>
+      <text id="l0" class="al" x="26" y="26" text-anchor="middle">0%</text>
+    </svg>
+    <div class="mi">
+      <span class="mt">5-hour limit</span>
+      <span id="s0" class="ms">–</span>
+    </div>
+  </div>
+  <div class="sp" id="sp0"></div>
+
+  <!-- Weekly all models -->
+  <div class="mr">
+    <svg class="as" viewBox="0 0 52 52">
+      <circle class="at" cx="26" cy="26" r="20"/>
+      <circle id="a1" class="af" cx="26" cy="26" r="20"
+              stroke="url(#arc-grad-1)" stroke-dasharray="125.66" stroke-dashoffset="125.66"
+              transform="rotate(-90 26 26)"/>
+      <text id="l1" class="al" x="26" y="26" text-anchor="middle">0%</text>
+    </svg>
+    <div class="mi">
+      <span class="mt">Weekly · all models</span>
+      <span id="s1" class="ms">–</span>
+    </div>
+  </div>
+  <div class="sp" id="sp1"></div>
+
+  <!-- Weekly Claude Design — hidden if API no longer returns this field -->
+  <div class="mr" id="mr2">
+    <svg class="as" viewBox="0 0 52 52">
+      <circle class="at" cx="26" cy="26" r="20"/>
+      <circle id="a2" class="af" cx="26" cy="26" r="20"
+              stroke="url(#arc-grad-2)" stroke-dasharray="125.66" stroke-dashoffset="125.66"
+              transform="rotate(-90 26 26)"/>
+      <text id="l2" class="al" x="26" y="26" text-anchor="middle">0%</text>
+    </svg>
+    <div class="mi">
+      <span class="mt">Weekly · Claude Design</span>
+      <span id="s2" class="ms">–</span>
+    </div>
+  </div>
+
+  <!-- Extra usage bar -->
+  <div id="ex">
+    <div id="ex-r">
+      <span id="ex-l">Extra usage</span>
+      <span id="ex-v">–</span>
+    </div>
+    <div id="ex-bg"><div id="ex-f"></div></div>
+  </div>
+
+  <!-- Footer -->
+  <div id="pf">
+    <span id="pf-s">–</span>
+    <span id="pf-r">⟳</span>
+  </div>
+
+</div>
+
+<!-- ── Right-click context menu ─────────────────── -->
+<div id="ctx">
+  <div class="ctx-item" id="ctx-restart">Reiniciar widget</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-quit">Salir</div>
+</div>
+
+<!-- ── Compact pill ──────────────────────────────── -->
+<div id="compact" class="glass">
+
+  <!-- Single arc: 5h limit -->
+  <svg id="ca" viewBox="0 0 36 36">
+    <circle class="ct" cx="18" cy="18" r="13"/>
+    <circle id="ca-f" class="cf" cx="18" cy="18" r="13"
+            stroke="url(#arc-grad-c)" stroke-dasharray="81.68" stroke-dashoffset="81.68"
+            transform="rotate(-90 18 18)"/>
+    <text id="ca-l" class="cl" x="18" y="18" text-anchor="middle">–</text>
+  </svg>
+
+  <!-- Text -->
+  <div id="ct">
+    <span id="cl">5-hour limit</span>
+    <span id="cr">Cargando…</span>
+  </div>
+
+  <!-- Buttons -->
+  <div id="cb">
+
+    <!-- Theme toggle -->
+    <span id="cth" class="cb" title="Cambiar tema">
+      <svg id="theme-icon" width="13" height="13" viewBox="0 0 16 16"></svg>
+    </span>
+
+    <!-- Pin icon: solid tachuela = pinned, outline = unpinned -->
+    <span id="cp" class="cb pinned" title="Siempre visible">
+      <svg width="13" height="13" viewBox="0 0 16 16">
+        <!-- Filled path for pinned state -->
+        <path id="pin-body"
+              d="M10.5 1.5H5.5L4.5 4.5L6.5 6.5V10.5H7.5V12.5H8.5V10.5H9.5V6.5L11.5 4.5L10.5 1.5Z"
+              fill="currentColor" stroke="none"/>
+        <!-- Outline path for unpinned — toggled via JS -->
+        <line x1="8" y1="12.5" x2="8" y2="15" stroke="currentColor" stroke-width="1.5"
+              stroke-linecap="round"/>
+      </svg>
+    </span>
+
+    <!-- Close widget -->
+    <span id="cc" class="cb" title="Cerrar">
+      <svg width="10" height="10" viewBox="0 0 10 10">
+        <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </span>
+
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────
+const C_LG = 2 * Math.PI * 20;  // 125.66  expanded arcs r=20
+const C_SM = 2 * Math.PI * 13;  // 81.68   compact arc  r=13
+
+let isExpanded = false;
+let isPinned   = true;
+
+// ── Color ──────────────────────────────────────────
+function col(p) {  // CSS colors for backgrounds/bars only
+  if (p >= 90) return '#ef4444';
+  if (p >= 70) return '#f59e0b';
+  return '#4d9de0';
+}
+
+function lerpHex(c1, c2, t) {
+  const h = s => parseInt(s, 16);
+  const r = Math.round(h(c1.slice(1,3)) + (h(c2.slice(1,3)) - h(c1.slice(1,3))) * t);
+  const g = Math.round(h(c1.slice(3,5)) + (h(c2.slice(3,5)) - h(c1.slice(3,5))) * t);
+  const b = Math.round(h(c1.slice(5,7)) + (h(c2.slice(5,7)) - h(c1.slice(5,7))) * t);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function barGradient(p) {
+  if (p < 70)  return 'linear-gradient(to right, #818cf8, #06b6d4)';
+  if (p < 90)  return 'linear-gradient(to right, #fbbf24, #f97316)';
+  if (p < 100) return 'linear-gradient(to right, #fb923c, #ef4444)';
+  return 'linear-gradient(to right, #ff2222, #7f0000)';
+}
+
+function setGradient(id, p) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const stops = el.querySelectorAll('stop');
+  let a, b;
+  if (p < 70) {
+    a = '#818cf8'; b = '#06b6d4';   // lavanda → cian
+  } else if (p < 90) {
+    a = '#fbbf24'; b = '#f97316';   // ámbar → naranja
+  } else if (p < 100) {
+    a = '#fb923c'; b = '#ef4444';   // naranja → rojo
+  } else {
+    a = '#ff2222'; b = '#7f0000';   // rojo brillante → carmesí profundo
+  }
+  stops[0].setAttribute('stop-color', a);
+  if (stops.length > 2) stops[1].setAttribute('stop-color', lerpHex(a, b, 0.5));
+  stops[stops.length - 1].setAttribute('stop-color', b);
+}
+
+// ── Arc setters ────────────────────────────────────
+// prevPct tracks the last displayed value per arc to detect rising vs. falling.
+// pendingExpandAnim suppresses the individual glow when animateArcsOnExpand will fire instead.
+const prevPct = {};
+let pendingExpandAnim = false;
+
+function triggerArcGlow(el) {
+  // Temporarily replaces arc-shimmer with a bright fade-out glow, then restores it.
+  el.style.animation = 'arc-fill-glow 2.2s ease-out forwards';
+  if (el._glowTimer) clearTimeout(el._glowTimer);
+  el._glowTimer = setTimeout(() => {
+    el.style.animation = '';
+    el._glowTimer = null;
+  }, 2200);
+}
+
+function arcBig(idx, pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  const key  = `a${idx}`;
+  const prev = prevPct[key];
+  const isRising = prev !== undefined && pct > prev && !pendingExpandAnim;
+  prevPct[key] = pct;
+
+  setGradient(`arc-grad-${idx}`, pct);
+  const el = document.getElementById(`a${idx}`);
+  el.setAttribute('stroke-dashoffset', (C_LG * (1 - pct / 100)).toFixed(2));
+  el.classList.toggle('warning',  pct >= 85 && pct < 100);
+  el.classList.toggle('critical', pct >= 100);
+  animateCount(`l${idx}`, Math.round(pct), 550);
+  if (isRising) triggerArcGlow(el);
+}
+function arcSmall(pct) {
+  pct = Math.max(0, Math.min(100, pct));
+  const prev = prevPct['ca-f'];
+  const isRising = prev !== undefined && pct > prev;
+  prevPct['ca-f'] = pct;
+
+  setGradient('arc-grad-c', pct);
+  const el = document.getElementById('ca-f');
+  el.setAttribute('stroke-dashoffset', (C_SM * (1 - pct / 100)).toFixed(2));
+  el.classList.toggle('warning',  pct >= 85 && pct < 100);
+  el.classList.toggle('critical', pct >= 100);
+  animateCount('ca-l', Math.round(pct), 550);
+  if (isRising) triggerArcGlow(el);
+}
+
+// ── Time ───────────────────────────────────────────
+function fmtReset(iso) {
+  if (!iso) return '';
+  const s = Math.max(0, Math.floor((new Date(iso) - Date.now()) / 1000));
+  if (s === 0) return '';   // reset time already passed — hide until fresh data arrives
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m ? `${h}h ${m}m` : `${h}h`;
+  return m > 0 ? `${m}m` : '< 1m';
+}
+function nowStr() {
+  return new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── Smart reset refresh ─────────────────────────────
+// Schedules an automatic refresh for exactly when the 5-hour window resets.
+// Cancelled and rescheduled every time fresh data arrives.
+let resetTimer = null;
+function scheduleResetRefresh(isoTime) {
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+  if (!isoTime) return;
+  const delay = new Date(isoTime) - Date.now() + 4000;  // +4s buffer for API to update
+  if (delay <= 0 || delay > 6 * 60 * 60 * 1000) return; // only schedule if within next 6 hours
+  resetTimer = setTimeout(() => { resetTimer = null; refresh(); }, delay);
+}
+
+// ── Apply data ─────────────────────────────────────
+// Persist last good usage across restarts via localStorage
+let lastGoodUsage = (() => {
+  try { return JSON.parse(localStorage.getItem('lastUsage')) || null; } catch { return null; }
+})();
+
+function applyData(data) {
+
+  // data.model is already a friendly label resolved in main (e.g. "Opus 4.8").
+  document.getElementById('md-v').textContent = data.model || 'Default';
+
+  if (data.profile) {
+    const acct  = data.profile.account || data.profile || {};
+    const name  = acct.full_name || acct.display_name || '';
+    const email = acct.email || '';
+    document.getElementById('un').textContent = name  || email || 'Usuario';
+    document.getElementById('ue').textContent = name  ? email : '';
+
+    const pb = document.getElementById('pb');
+    if (acct.has_claude_max) {
+      pb.textContent = '● MAX'; pb.style.cssText =
+        'color:#a78bfa;border-color:rgba(167,139,250,.25);background:rgba(167,139,250,.08)';
+    } else if (acct.has_claude_pro) {
+      pb.textContent = '● PRO'; pb.style.cssText =
+        'color:#4ade80;border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.08)';
+    } else {
+      pb.textContent = '● FREE'; pb.style.cssText =
+        'color:#888;border-color:rgba(136,136,136,.2);background:rgba(136,136,136,.06)';
+    }
+  }
+
+  const usageData = data.usage || lastGoodUsage;
+  if (data.usage) {
+    lastGoodUsage = data.usage;
+    try { localStorage.setItem('lastUsage', JSON.stringify(data.usage)); } catch {}
+  }
+
+  if (usageData) {
+    const u   = usageData;
+    const fh  = u.five_hour          || {};
+    const sd  = u.seven_day          || {};
+    const des = u.seven_day_omelette || {};
+    const ext = u.extra_usage        || {};
+
+    const fivePct = fh.utilization  || 0;
+    const weekPct = sd.utilization  || 0;
+    const desPct  = des.utilization || 0;
+    const fiveRst = fmtReset(fh.resets_at);
+    const weekRst = fmtReset(sd.resets_at);
+
+    // Schedule an auto-refresh for when the 5h window resets (only on live data, not cache)
+    if (data.usage) scheduleResetRefresh(fh.resets_at);
+
+    arcBig(0, fivePct);
+    document.getElementById('s0').textContent =
+      fiveRst ? `${Math.round(fivePct)}% · resets ${fiveRst}` : `${Math.round(fivePct)}%`;
+
+    arcBig(1, weekPct);
+    document.getElementById('s1').textContent =
+      weekRst ? `${Math.round(weekPct)}% · resets ${weekRst}` : `${Math.round(weekPct)}%`;
+
+    const hasDesign = !!des.resets_at;
+    document.getElementById('mr2').style.display = hasDesign ? '' : 'none';
+    document.getElementById('sp1').style.display = hasDesign ? '' : 'none';
+    if (hasDesign) {
+      arcBig(2, desPct);
+      document.getElementById('s2').textContent = `${Math.round(desPct)}%`;
+    }
+
+
+    arcSmall(fivePct);
+    document.getElementById('cr').textContent =
+      fiveRst ? `${Math.round(fivePct)}% · resets ${fiveRst}` : `${Math.round(fivePct)}%`;
+
+    if (ext.is_enabled) {
+      document.getElementById('ex').style.display = '';
+      const used  = (ext.used_credits  || 0) / 100;
+      const limit = (ext.monthly_limit || 0) / 100;
+      const xPct  = ext.utilization    || 0;
+      document.getElementById('ex-l').textContent = `Extra usage (${ext.currency || 'USD'})`;
+      document.getElementById('ex-v').textContent = `$${used.toFixed(2)} / $${limit.toFixed(2)}`;
+      const exBar = document.getElementById('ex-f');
+      exBar.style.width      = `${Math.min(xPct, 100)}%`;
+      exBar.style.background = barGradient(xPct);
+      exBar.dataset.pct      = xPct;
+    } else {
+      document.getElementById('ex').style.display = 'none';
+    }
+  }
+
+  const hasRateLimit = data.errs?.some(e => e.includes('429'));
+  const hasErr = data.errs?.length;
+  document.getElementById('pf-s').textContent = hasRateLimit
+    ? `Rate limit · datos anteriores · ${nowStr()}`
+    : hasErr
+      ? `Actualizado ${nowStr()} · ${data.errs.join(' ')}`
+      : `Actualizado ${nowStr()}`;
+
+  // If still no usage data at all, update compact subtitle so it doesn't stay "Cargando..."
+  if (!usageData) {
+    document.getElementById('cr').textContent = hasRateLimit ? 'Rate limit · espera unos min' : 'Sin datos';
+  }
+}
+
+// ── Smooth number counter ──────────────────────────
+// Cancels any in-flight animation on the same label before starting a new one.
+// fromPct = null → reads current displayed value so refreshes animate from wherever they are.
+const _raf = {};   // labelId → pending requestAnimationFrame handle
+
+function animateCount(labelId, targetPct, duration, fromPct = null) {
+  if (_raf[labelId]) { cancelAnimationFrame(_raf[labelId]); delete _raf[labelId]; }
+  const el = document.getElementById(labelId);
+  if (!el) return;
+  if (fromPct === null) fromPct = parseInt(el.textContent) || 0;
+  if (fromPct === targetPct) { el.textContent = `${targetPct}%`; return; }
+  const start = performance.now();
+  function step(now) {
+    const t     = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = `${Math.round(fromPct + (targetPct - fromPct) * eased)}%`;
+    if (t < 1) { _raf[labelId] = requestAnimationFrame(step); }
+    else        { delete _raf[labelId]; }
+  }
+  _raf[labelId] = requestAnimationFrame(step);
+}
+
+function animateArcsOnExpand() {
+  // Only animate arcs that are currently visible (arc2 = Design is optional)
+  const allIds = ['a0', 'a1', 'a2'];
+  const ids = allIds.filter((_, i) =>
+    i < 2 || document.getElementById('mr2').style.display !== 'none'
+  );
+  const offsets = ids.map(id => document.getElementById(id).getAttribute('stroke-dashoffset'));
+
+  // Instantly empty all arcs (no transition)
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.style.transition = 'none';
+    el.setAttribute('stroke-dashoffset', C_LG.toFixed(2));
+    document.getElementById(`l${allIds.indexOf(id)}`).textContent = '0%';
+  });
+
+  // Staggered fill: each arc + counter starts 130ms after the previous, with shimmer glow
+  ids.forEach((id, i) => {
+    const labelIdx = allIds.indexOf(id);
+    setTimeout(() => {
+      const el        = document.getElementById(id);
+      const targetPct = Math.round(100 * (1 - parseFloat(offsets[i]) / C_LG));
+      el.style.transition = '';
+      el.setAttribute('stroke-dashoffset', offsets[i]);
+      animateCount(`l${labelIdx}`, targetPct, 650);
+      if (targetPct > 0) triggerArcGlow(el);
+    }, 60 + i * 130);
+  });
+
+  // Extra usage bar fills last, cascading after all visible arcs
+  const exEl = document.getElementById('ex');
+  const bar  = document.getElementById('ex-f');
+  if (exEl && exEl.style.display !== 'none' && bar) {
+    const targetW = bar.style.width;
+    bar.style.transition = 'none';
+    bar.style.width = '0%';
+    setTimeout(() => {
+      bar.style.transition = '';
+      bar.style.width = targetW;
+    }, 60 + ids.length * 130);   // starts after last visible arc
+  }
+}
+
+// ── Expand / collapse ──────────────────────────────
+// On expand the renderer measures the panel and tells main the exact window height
+// so the window fits the content (no empty white strip when optional rows hide).
+let collapseTimer = null;
+
+function setExpanded(value) {
+  if (isExpanded === value) return;
+  if (isDragging) return;
+  isExpanded = value;
+  const panel = document.getElementById('expanded');
+
+  if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
+
+  if (value) {
+    // .expanded pins the compact bar back to 52px at the bottom so the panel can
+    // sit above it; while collapsed the bar fills the whole (short) window.
+    document.body.classList.add('expanded');
+    panel.style.display = 'flex';
+    // Measure the laid-out panel so the window fits its content exactly. The window
+    // is made 3px SHORTER than (panel + 58) so the panel is clipped flush against
+    // the window's top edge — no transparent strip above it (which renders as a
+    // white bar when unfocused on Windows). 58 = compact bar + its gap below panel.
+    const winH = Math.round(panel.offsetHeight + 58 - 3);
+    window.claude.panelState(true, winH);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      panel.classList.add('show');
+      animateArcsOnExpand();
+    }));
+  } else {
+    window.claude.panelState(false);
+    panel.classList.remove('show');
+    collapseTimer = setTimeout(() => {
+      collapseTimer = null;
+      panel.style.display = 'none';
+      // Remove .expanded only after the window has shrunk (main shrinks at 500ms),
+      // so the compact bar doesn't briefly stretch to fill the still-tall window.
+      document.body.classList.remove('expanded');
+    }, 520);   // > 500ms main-process shrink, > 450ms spring-transform
+  }
+}
+
+// ── Pin icon ───────────────────────────────────────
+function renderPin(pinned) {
+  const pinEl   = document.getElementById('cp');
+  const pinBody = document.getElementById('pin-body');
+  pinEl.classList.toggle('pinned', pinned);
+
+  if (pinned) {
+    // Filled tachuela (clavada al frente)
+    pinBody.setAttribute('fill', 'currentColor');
+    pinBody.removeAttribute('stroke');
+    pinEl.title = 'Siempre visible (click para desfijar)';
+  } else {
+    // Outline tachuela (libre, flotando)
+    pinBody.setAttribute('fill', 'none');
+    pinBody.setAttribute('stroke', 'currentColor');
+    pinBody.setAttribute('stroke-width', '1.3');
+    pinEl.title = 'Flotante (click para fijar)';
+  }
+}
+
+// ── Refresh ────────────────────────────────────────
+// Separate flags: manual has a 30s cooldown to prevent 429s; auto never blocks itself.
+let manualBusy = false;
+let autoBusy   = false;
+
+async function refresh(isManual = false) {
+  if (isManual  && manualBusy) return;
+  if (!isManual && autoBusy)   return;
+  if (isManual) manualBusy = true; else autoBusy = true;
+
+  const btn = document.getElementById('pf-r');
+  btn.classList.add('spin');
+  if (isManual) btn.style.opacity = '0.4';
+  document.getElementById('pf-s').textContent = 'Actualizando…';
+
+  // Declared outside try so finally can access data?.error for the cooldown logic
+  let data;
+  try {
+    data = await window.claude.fetchData();
+
+    if (data?.error === 'no_token') {
+      document.getElementById('pf-s').textContent = 'Sin token — ejecuta: claude login';
+      return;
+    }
+    if (data?.error) {
+      document.getElementById('pf-s').textContent = `Error: ${data.error}`;
+      return;
+    }
+    if (!data.profile && !data.usage && !lastGoodUsage) {
+      const detail = data.errs ? data.errs.join(' · ') : 'sin datos';
+      document.getElementById('pf-s').textContent = `Error de red · ${detail}`;
+      document.getElementById('cr').textContent = data.errs?.some(e => e.includes('429'))
+        ? 'Rate limit — espera unos minutos'
+        : 'Sin datos';
+      return;
+    }
+
+    // Suppress individual arc glow when animateArcsOnExpand will handle it with stagger
+    if (isManual && isExpanded) pendingExpandAnim = true;
+    applyData(data);
+    pendingExpandAnim = false;
+    if (isManual && isExpanded) animateArcsOnExpand();
+  } catch (e) {
+    document.getElementById('pf-s').textContent = `Error: ${e.message}`;
+  } finally {
+    btn.classList.remove('spin');
+    if (isManual) {
+      // 30-second cooldown on manual refresh to avoid 429 — but not when token is missing
+      // (user may have just run `claude login` and wants to retry immediately)
+      const needsCooldown = data?.error !== 'no_token';
+      if (needsCooldown) {
+        setTimeout(() => { btn.style.opacity = ''; manualBusy = false; }, 30_000);
+      } else {
+        btn.style.opacity = '';
+        manualBusy = false;
+      }
+    } else {
+      autoBusy = false;
+    }
+  }
+}
+
+// ── Drag ───────────────────────────────────────────
+// Uses e.screenX/Y deltas — avoids movementX/Y first-event spike.
+// No rAF batching: with focusable:false the window is always "background" and rAF
+// can be delayed, making the drag feel frozen. Direct IPC per mousemove is reliable.
+
+let isDragging  = false;
+let dragMoved   = false;
+let dragEndTime = 0;
+let lastScrX    = 0;
+let lastScrY    = 0;
+
+function startDrag(e) {
+  isDragging = true;
+  dragMoved  = false;
+  lastScrX   = e.screenX;
+  lastScrY   = e.screenY;
+  if (collapseTimer) { clearTimeout(collapseTimer); collapseTimer = null; }
+  window.claude.dragStart();
+}
+
+function stopDrag() {
+  if (!isDragging) return;
+  isDragging = false;
+  if (dragMoved) dragEndTime = Date.now();
+  window.claude.dragEnd();
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.screenX - lastScrX;
+  const dy = e.screenY - lastScrY;
+  lastScrX = e.screenX;
+  lastScrY = e.screenY;
+  if (dx !== 0 || dy !== 0) {
+    dragMoved = true;
+    window.claude.dragMove(dx, dy);
+  }
+});
+
+document.addEventListener('mouseup', stopDrag);
+
+// Whole compact bar is the drag zone — mousedown anywhere except buttons starts drag
+document.getElementById('compact').addEventListener('mousedown', (e) => {
+  if (e.target.closest('#cb')) return;
+  startDrag(e);
+});
+
+// Expanded panel header is also a drag zone
+document.getElementById('ph').addEventListener('mousedown', (e) => {
+  if (e.target.closest('#ph-close')) return;
+  startDrag(e);
+});
+
+// Click to expand: only fires if no movement happened (dragMoved=false) and
+// no recent drag ended (300ms grace period prevents post-drag accidental expand).
+document.getElementById('compact').addEventListener('click', (e) => {
+  if (isDragging) return;
+  if (e.target.closest('#cb')) return;
+  if (dragMoved || Date.now() - dragEndTime < 300) { dragMoved = false; return; }
+  setExpanded(!isExpanded);
+});
+
+document.getElementById('ph-close').addEventListener('click', () => setExpanded(false));
+document.getElementById('pf-r').addEventListener('click', () => refresh(true));
+
+document.getElementById('cp').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  isPinned = await window.claude.togglePin();
+  renderPin(isPinned);
+});
+
+document.getElementById('cc').addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.claude.close();
+});
+
+// ── Theme ──────────────────────────────────────────
+const SUN_PATH  = '<circle cx="8" cy="8" r="3" fill="currentColor"/><line x1="8" y1="1.5" x2="8" y2="3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="12.8" x2="8" y2="14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1.5" y1="8" x2="3.2" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12.8" y1="8" x2="14.5" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="3.5" y1="3.5" x2="4.6" y2="4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11.4" y1="11.4" x2="12.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12.5" y1="3.5" x2="11.4" y2="4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4.6" y1="11.4" x2="3.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>';
+const MOON_PATH = '<path d="M12.5 10.8A5.2 5.2 0 0 1 5.2 3.5a6.2 6.2 0 1 0 7.3 7.3z" fill="currentColor"/>';
+
+let isDark = localStorage.getItem('theme') !== 'light';
+
+function applyTheme(dark) {
+  isDark = dark;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const icon = document.getElementById('theme-icon');
+  icon.innerHTML = dark ? SUN_PATH : MOON_PATH;
+  document.getElementById('cth').title = dark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+
+document.getElementById('cth').addEventListener('click', (e) => {
+  e.stopPropagation();
+  applyTheme(!isDark);
+});
+
+
+// ── Context menu ───────────────────────────────────
+const ctx = document.getElementById('ctx');
+
+function hideCtx() { ctx.style.display = 'none'; }
+
+document.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const x = Math.min(e.clientX, window.innerWidth  - 160);
+  const y = Math.min(e.clientY, window.innerHeight -  70);
+  ctx.style.left    = `${x}px`;
+  ctx.style.top     = `${y}px`;
+  ctx.style.display = 'flex';
+});
+
+document.addEventListener('click',    hideCtx);
+document.addEventListener('keydown',  hideCtx);
+
+document.getElementById('ctx-restart').addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.claude.restart();
+});
+document.getElementById('ctx-quit').addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.claude.quit();
+});
+
+// ── Init ───────────────────────────────────────────
+applyTheme(isDark);
+renderPin(true);
+
+refresh();
+// Auto-refresh is driven by the main process timer (immune to Chromium throttling).
+window.claude.onAutoRefresh(() => refresh());
+
+</script>
+</body>
+</html>
