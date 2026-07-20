@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
+<title>Skills instaladas</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100vh; background: transparent; overflow: hidden;
+  font-family: 'Segoe UI', system-ui, sans-serif; color: #ebebeb;
+}
+#wrap {
+  height: 100vh; border-radius: 14px;
+  background: rgba(14,14,20,.94); border: 1px solid rgba(255,255,255,.10);
+  display: flex; flex-direction: column;
+}
+#hdr {
+  padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex; align-items: center; gap: 8px;
+  -webkit-app-region: drag;
+}
+#hdr-title { font-size: 13px; font-weight: 700; flex: 1; }
+#hdr-close {
+  -webkit-app-region: no-drag; cursor: pointer; color: #f87171;
+  padding: 4px 6px; border-radius: 5px; line-height: 1;
+}
+#body { flex: 1; padding: 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr">
+    <span id="hdr-title">Skills instaladas</span>
+    <span id="hdr-close">✕</span>
+  </div>
+  <div id="body">Cargando…</div>
+</div>
+<script>
+document.getElementById('hdr-close').addEventListener('click', () => window.skills.close());
+
+(async () => {
+  const res = await window.skills.scan();
+  document.getElementById('body').textContent =
+    res.error ? ('Error: ' + res.error) : (res.skills.length + ' skills encontradas');
+})();
+</script>
+</body>
+</html>
