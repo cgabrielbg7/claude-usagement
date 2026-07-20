@@ -10,6 +10,20 @@ const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
 
+// Quita las comillas que envuelven un valor YAML entrecomillado y deshace los
+// escapes de adentro. Solo actua si el valor abre y cierra con la misma comilla,
+// asi un valor con comilla sin pareja se conserva tal cual.
+function unquote(value) {
+  const q = value[0];
+  if (value.length < 2 || value[value.length - 1] !== q) return value;
+
+  const inner = value.slice(1, -1);
+  // Comillas dobles: \" y \\ van escapadas. Comillas simples: '' es una comilla.
+  if (q === '"')  return inner.replace(/\\(["\\])/g, '$1');
+  if (q === "'")  return inner.replace(/''/g, "'");
+  return value;
+}
+
 // Parsea un bloque YAML frontmatter plano (clave: valor). Soporta valores
 // envueltos en varias lineas, que es como quedan las descripciones largas.
 // Devuelve null si el texto no empieza con un bloque ---.
@@ -28,6 +42,11 @@ function parseFrontmatter(text) {
       out[key] += ' ' + line.trim();
     }
   }
+
+  // Al final: un valor entrecomillado de varias lineas solo queda completo
+  // (con su comilla de cierre) despues de unir todas sus lineas.
+  for (const k of Object.keys(out)) out[k] = unquote(out[k]);
+
   return out;
 }
 

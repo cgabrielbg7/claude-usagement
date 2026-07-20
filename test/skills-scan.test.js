@@ -40,6 +40,48 @@ test('parseFrontmatter devuelve null sin bloque frontmatter', () => {
   assert.strictEqual(parseFrontmatter('# Solo un titulo\n'), null);
 });
 
+// Muchas skills (31 de 78 en el sistema real) escriben la descripcion como string
+// YAML entrecomillado. Sin quitar las comillas se muestran literales en la UI.
+test('parseFrontmatter quita comillas dobles que envuelven el valor', () => {
+  const out = parseFrontmatter('---\nname: foo\ndescription: "hace algo"\n---\n');
+  assert.strictEqual(out.description, 'hace algo');
+});
+
+test('parseFrontmatter quita comillas simples que envuelven el valor', () => {
+  const out = parseFrontmatter("---\nname: foo\ndescription: 'hace algo'\n---\n");
+  assert.strictEqual(out.description, 'hace algo');
+});
+
+test('parseFrontmatter quita comillas tambien en valores de varias lineas', () => {
+  const out = parseFrontmatter('---\nname: foo\ndescription: "primera parte\n  segunda parte"\n---\n');
+  assert.strictEqual(out.description, 'primera parte segunda parte');
+});
+
+// Dentro de un string YAML entrecomillado, las comillas internas van escapadas.
+// Sin deshacer el escape se ven barras invertidas literales en la UI.
+test('parseFrontmatter deshace escapes dentro de comillas dobles', () => {
+  const out = parseFrontmatter('---\nname: foo\ndescription: "usa \\"setup\\" y \\\\ barra"\n---\n');
+  assert.strictEqual(out.description, 'usa "setup" y \\ barra');
+});
+
+test('parseFrontmatter deshace comillas dobladas dentro de comillas simples', () => {
+  const out = parseFrontmatter("---\nname: foo\ndescription: 'no ''puedo'' mas'\n---\n");
+  assert.strictEqual(out.description, "no 'puedo' mas");
+});
+
+test('parseFrontmatter no toca barras invertidas fuera de comillas', () => {
+  const out = parseFrontmatter('---\nname: foo\ndescription: ruta C:\\temp\\x\n---\n');
+  assert.strictEqual(out.description, 'ruta C:\\temp\\x');
+});
+
+test('parseFrontmatter conserva comillas internas y sin pareja', () => {
+  const out = parseFrontmatter('---\nname: foo\ndescription: usa "comillas" adentro\n---\n');
+  assert.strictEqual(out.description, 'usa "comillas" adentro');
+
+  const impar = parseFrontmatter('---\nname: foo\ndescription: "sin cerrar\n---\n');
+  assert.strictEqual(impar.description, '"sin cerrar');
+});
+
 // Varias skills reales (vercel/ai-sdk, vercel/workflow…) tienen descripciones
 // enormes DENTRO del frontmatter: el bloque llega a cerrar pasado el byte 16000.
 // Leer solo una cabecera corta partia el bloque y el parseo fallaba.
