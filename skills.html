@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
+<title>Skills instaladas</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gbg:   rgba(14, 14, 20, 0.94);
+  --gbord: rgba(255,255,255,.10);
+  --text:  #ebebeb;
+  --sub:   #8a8a96;
+  --muted: #44444c;
+  --blue:  #4d9de0;
+  --sep:   rgba(255,255,255,.06);
+  --hov:   rgba(255,255,255,.05);
+  --field: rgba(255,255,255,.06);
+  --r:     14px;
+}
+
+[data-theme="light"] {
+  --gbg:   rgba(250, 250, 255, 0.96);
+  --gbord: rgba(0,0,0,.09);
+  --text:  #16161e;
+  --sub:   #6b6b7e;
+  --muted: #6e6e80;
+  --sep:   rgba(0,0,0,.07);
+  --hov:   rgba(0,0,0,.04);
+  --field: rgba(0,0,0,.05);
+}
+
+html, body {
+  height: 100vh; overflow: hidden; background: transparent;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--text); user-select: none; -webkit-font-smoothing: antialiased;
+}
+
+#wrap {
+  height: 100vh; border-radius: var(--r);
+  background: var(--gbg); border: 1px solid var(--gbord);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────── */
+#hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 12px 10px 14px; border-bottom: 1px solid var(--sep);
+  flex-shrink: 0; -webkit-app-region: drag;
+}
+#hdr-title {
+  font-size: 12.5px; font-weight: 700; letter-spacing: .06em;
+  background: linear-gradient(90deg, #818cf8, #38bdf8);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+#hdr-count { font-size: 10.5px; color: var(--muted); flex: 1; }
+#hdr-refresh, #hdr-close {
+  -webkit-app-region: no-drag; cursor: pointer;
+  padding: 3px 6px; border-radius: 5px; line-height: 1;
+  transition: background .15s, color .15s;
+}
+#hdr-refresh { color: var(--blue); font-size: 14px; }
+#hdr-refresh:hover { background: rgba(77,157,224,.12); }
+#hdr-refresh.spin { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#hdr-close { color: #f87171; font-size: 11px; }
+#hdr-close:hover { color: #ef4444; background: rgba(239,68,68,.12); }
+
+/* ── Buscador ───────────────────────────────────── */
+#search-row { padding: 10px 14px; border-bottom: 1px solid var(--sep); flex-shrink: 0; }
+#q {
+  width: 100%; padding: 7px 10px; font-size: 12px;
+  font-family: inherit; color: var(--text);
+  background: var(--field); border: 1px solid transparent; border-radius: 7px;
+  outline: none; user-select: text;
+}
+#q::placeholder { color: var(--muted); }
+#q:focus { border-color: rgba(77,157,224,.45); }
+
+/* ── Lista ──────────────────────────────────────── */
+#list { flex: 1; overflow-y: auto; padding: 6px 0 10px; }
+#list::-webkit-scrollbar { width: 8px; }
+#list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.12); border-radius: 4px;
+}
+[data-theme="light"] #list::-webkit-scrollbar-thumb { background: rgba(0,0,0,.16); }
+
+.sec-h, .grp-h {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; transition: background .12s;
+}
+.sec-h { padding: 8px 14px 6px; }
+.sec-h:hover, .grp-h:hover { background: var(--hov); }
+.sec-t { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.sec-n { font-size: 10px; color: var(--muted); flex: 1; }
+.sec-p { font-size: 9.5px; color: var(--muted); }
+
+.grp-h { padding: 5px 14px 5px 24px; }
+.grp-t { font-size: 11px; font-weight: 600; color: var(--sub); }
+.grp-v {
+  font-size: 9px; color: var(--muted); padding: 1px 5px;
+  border: 1px solid var(--sep); border-radius: 4px;
+}
+.grp-n { font-size: 10px; color: var(--muted); flex: 1; text-align: right; }
+
+.caret {
+  font-size: 8px; color: var(--muted); width: 8px;
+  transition: transform .15s; flex-shrink: 0;
+}
+.closed > .caret { transform: rotate(-90deg); }
+
+.sk { padding: 5px 14px 6px 34px; }
+.sk:hover { background: var(--hov); }
+.sk-n { font-size: 11.5px; font-weight: 600; }
+.sk-d {
+  font-size: 10.5px; color: var(--sub); line-height: 1.35; margin-top: 1px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sk-warn { font-size: 10px; color: #f59e0b; margin-top: 1px; }
+.hidden { display: none; }
+
+#msg {
+  padding: 40px 24px; text-align: center;
+  font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+  <div id="hdr">
+    <span id="hdr-title">Skills instaladas</span>
+    <span id="hdr-count">–</span>
+    <span id="hdr-refresh" title="Volver a escanear">⟳</span>
+    <span id="hdr-close" title="Cerrar">✕</span>
+  </div>
+
+  <div id="search-row">
+    <input id="q" type="text" placeholder="Buscar skill por nombre o descripción…" autocomplete="off"/>
+  </div>
+
+  <div id="list"><div id="msg">Escaneando…</div></div>
+
+</div>
+
+<script>
+// El widget guarda el tema en localStorage; ambas ventanas comparten el origen
+// file://, asi que el catalogo abre con el mismo tema. Si no hay valor, oscuro.
+document.documentElement.setAttribute(
+  'data-theme', localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
+
+let ALL      = [];
+let query    = '';
+const closed = new Set();   // claves de secciones/grupos colapsados
+
+const listEl  = document.getElementById('list');
+const countEl = document.getElementById('hdr-count');
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
+  ));
+}
+
+function matches(s) {
+  if (!query) return true;
+  const t = query.toLowerCase();
+  return s.name.toLowerCase().includes(t) || s.description.toLowerCase().includes(t);
+}
+
+function skillRow(s) {
+  const desc = s.parsed
+    ? `<div class="sk-d">${esc(s.description)}</div>`
+    : '<div class="sk-warn">sin frontmatter legible</div>';
+  return `<div class="sk"><div class="sk-n">${esc(s.name)}</div>${desc}</div>`;
+}
+
+// Al buscar, todo se muestra abierto: colapsar esconderia coincidencias.
+function isClosed(key) { return !query && closed.has(key); }
+
+function section(key, title, count, note, inner) {
+  const cls = isClosed(key) ? ' closed' : '';
+  return `<div class="sec">
+    <div class="sec-h${cls}" data-key="${esc(key)}">
+      <span class="caret">▼</span>
+      <span class="sec-t">${esc(title)}</span>
+      <span class="sec-n">(${count})</span>
+      <span class="sec-p">${esc(note)}</span>
+    </div>
+    <div class="sec-b${isClosed(key) ? ' hidden' : ''}">${inner}</div>
+  </div>`;
+}
+
+function group(key, title, version, skills) {
+  const cls = isClosed(key) ? ' closed' : '';
+  const ver = version ? `<span class="grp-v">v${esc(version)}</span>` : '';
+  return `<div class="grp">
+    <div class="grp-h${cls}" data-key="${esc(key)}">
+      <span class="caret">▼</span>
+      <span class="grp-t">${esc(title)}</span>${ver}
+      <span class="grp-n">(${skills.length})</span>
+    </div>
+    <div class="grp-b${isClosed(key) ? ' hidden' : ''}">${skills.map(skillRow).join('')}</div>
+  </div>`;
+}
+
+function byName(a, b) { return a.name.localeCompare(b.name); }
+
+function groupBy(skills) {
+  const map = new Map();
+  for (const s of skills) {
+    if (!map.has(s.group)) map.set(s.group, []);
+    map.get(s.group).push(s);
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function render() {
+  const shown = ALL.filter(matches);
+
+  countEl.textContent = query
+    ? `${shown.length} de ${ALL.length}`
+    : `${ALL.length} skill${ALL.length === 1 ? '' : 's'}`;
+
+  if (!ALL.length) {
+    listEl.innerHTML = '<div id="msg">No se encontraron skills instaladas.<br/>' +
+      'Se buscó en ~/.claude/skills, los plugins instalados y los proyectos registrados.</div>';
+    return;
+  }
+  if (!shown.length) {
+    listEl.innerHTML = `<div id="msg">Sin coincidencias para «${esc(query)}».</div>`;
+    return;
+  }
+
+  const personal = shown.filter((s) => s.source === 'personal').sort(byName);
+  const plugins  = groupBy(shown.filter((s) => s.source === 'plugin'));
+  const projects = groupBy(shown.filter((s) => s.source === 'project'));
+
+  let html = '';
+
+  if (personal.length) {
+    html += section('sec:personal', 'Personales', personal.length,
+                    '~/.claude/skills', personal.map(skillRow).join(''));
+  }
+
+  if (plugins.length) {
+    const total = plugins.reduce((n, [, arr]) => n + arr.length, 0);
+    const inner = plugins.map(([name, arr]) =>
+      group('plg:' + name, name, arr[0].version, arr.slice().sort(byName))).join('');
+    html += section('sec:plugins', 'Plugins', total, '', inner);
+  }
+
+  if (projects.length) {
+    const total = projects.reduce((n, [, arr]) => n + arr.length, 0);
+    const inner = projects.map(([name, arr]) =>
+      group('prj:' + name, name, '', arr.slice().sort(byName))).join('');
+    html += section('sec:projects', 'Proyectos', total, '', inner);
+  }
+
+  listEl.innerHTML = html;
+}
+
+// Colapsar / expandir por delegacion: el HTML se regenera en cada render.
+listEl.addEventListener('click', (e) => {
+  const head = e.target.closest('.sec-h, .grp-h');
+  if (!head || query) return;          // durante una busqueda no se colapsa
+  const key = head.dataset.key;
+  if (closed.has(key)) closed.delete(key); else closed.add(key);
+  render();
+});
+
+document.getElementById('q').addEventListener('input', (e) => {
+  query = e.target.value.trim();
+  render();
+});
+
+document.getElementById('hdr-close').addEventListener('click', () => window.skills.close());
+
+async function load() {
+  const btn = document.getElementById('hdr-refresh');
+  btn.classList.add('spin');
+  try {
+    const res = await window.skills.scan();
+    if (res.error) {
+      listEl.innerHTML = `<div id="msg">No se pudo escanear.<br/>${esc(res.error)}</div>`;
+      countEl.textContent = '–';
+      return;
+    }
+    ALL = res.skills;
+    render();
+  } catch (e) {
+    listEl.innerHTML = `<div id="msg">No se pudo escanear.<br/>${esc(e.message)}</div>`;
+  } finally {
+    btn.classList.remove('spin');
+  }
+}
+
+document.getElementById('hdr-refresh').addEventListener('click', load);
+load();
+</script>
+</body>
+</html>

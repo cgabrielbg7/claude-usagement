@@ -206,7 +206,7 @@ test('scanSkills reporta el error de proyectos sin lanzar si ~/.claude.json esta
 - [ ] **Step 2: Correr los tests para verificar que fallan**
 
 ```bash
-node --test test/
+npm test
 ```
 
 Esperado: FAIL — `Cannot find module '../skills-scan'`.
@@ -357,7 +357,7 @@ module.exports = { scanSkills, parseFrontmatter };
 - [ ] **Step 4: Correr los tests para verificar que pasan**
 
 ```bash
-node --test test/
+npm test
 ```
 
 Esperado: `# pass 12` / `# fail 0`.
@@ -1039,7 +1039,7 @@ Si aparece: cambiar en `main.js` la creación de `skillsWin` a `transparent: fal
 - [ ] **Step 3: Correr la suite de tests una última vez**
 
 ```bash
-node --test test/
+npm test
 ```
 
 Esperado: `# pass 12` / `# fail 0`.

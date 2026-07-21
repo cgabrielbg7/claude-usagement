@@ -6,6 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.js",
     "build": "electron-builder --win portable"
   },
   "devDependencies": {
@@ -22,6 +23,9 @@
       "main.js",
       "preload.js",
       "index.html",
+      "skills-scan.js",
+      "skills-preload.js",
+      "skills.html",
       "icon.ico"
     ],
     "win": {

@@ -3,6 +3,8 @@ const path  = require('path');
 const os    = require('os');
 const fs    = require('fs');
 
+const { scanSkills } = require('./skills-scan');
+
 // Identifies the process in Task Manager (otherwise it's just "electron.exe").
 app.setName('Claude Usage Widget');
 app.setAppUserModelId('com.claude.usagewidget');
@@ -34,9 +36,12 @@ const API_BASE   = 'https://api.anthropic.com';
 const COMPACT_H  = 52;
 const EXPANDED_H = 450;
 const WIDGET_W   = 290;
+const SKILLS_W   = 720;
+const SKILLS_H   = 560;
 
-let win  = null;
-let tray = null;
+let win       = null;
+let tray      = null;
+let skillsWin = null;
 
 // Set true only when the user really wants to exit (tray "Salir", shortcut, or the
 // widget's own quit). Lets us keep the app alive in the tray when the WINDOW closes
@@ -402,6 +407,65 @@ ipcMain.on('panel-state', (_, payload) => {
       collapseTimer = null;
       if (!isPanelExpanded) applyBounds();  // shrink back to 290×52
     }, 500);
+  }
+});
+
+// ── Ventana del catalogo de skills ────────────────────────────────────────────
+// A diferencia del widget: redimensionable, sin always-on-top y visible en la
+// barra de tareas. Es una ventana para leer, no un overlay.
+
+function openSkillsWindow() {
+  if (skillsWin && !skillsWin.isDestroyed()) {
+    if (skillsWin.isMinimized()) skillsWin.restore();
+    skillsWin.focus();
+    return;
+  }
+
+  skillsWin = new BrowserWindow({
+    icon:            path.join(__dirname, 'icon.ico'),
+    width:           SKILLS_W,
+    height:          SKILLS_H,
+    minWidth:        480,
+    minHeight:       360,
+    title:           'Skills instaladas',
+    frame:           false,
+    transparent:     true,
+    resizable:       true,
+    hasShadow:       false,
+    backgroundColor: '#00000000',
+    show:            false,
+    webPreferences: {
+      preload:              path.join(__dirname, 'skills-preload.js'),
+      nodeIntegration:      false,
+      contextIsolation:     true,
+      backgroundThrottling: false,
+    },
+  });
+
+  skillsWin.once('ready-to-show', () => skillsWin.show());
+  skillsWin.webContents.on('did-fail-load', (e, code, desc) => {
+    logError('Skills load failed', `${code} ${desc}`);
+  });
+  // Parity with the widget window: log a crashed catalog renderer instead of it
+  // failing silently (the catalog would otherwise just vanish with no trace).
+  skillsWin.webContents.on('render-process-gone', (e, d) => {
+    logError('Skills renderer gone', JSON.stringify(d));
+  });
+  skillsWin.loadFile('skills.html');
+  skillsWin.on('closed', () => { skillsWin = null; });
+}
+
+ipcMain.on('open-skills',  openSkillsWindow);
+ipcMain.on('close-skills', () => {
+  if (skillsWin && !skillsWin.isDestroyed()) skillsWin.close();
+});
+
+ipcMain.handle('scan-skills', () => {
+  try {
+    return { skills: scanSkills({ onError: (src, msg) => logError(`scan-skills:${src}`, msg) }) };
+  } catch (e) {
+    logError('scan-skills', e.message);
+    return { skills: [], error: e.message };
   }
 });
 

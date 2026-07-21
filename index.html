@@ -194,6 +194,10 @@ body.expanded #compact { top: auto; height: 52px; }
 #pf-r { cursor: pointer; font-size: 14px; color: var(--blue);
         padding: 2px 5px; border-radius: 4px; transition: background .15s; line-height: 1; }
 #pf-r:hover { background: rgba(77,157,224,.12); }
+#pf-a { display: flex; align-items: center; gap: 3px; }
+#pf-sk { width: 13px; height: 13px; cursor: pointer; color: var(--blue);
+         padding: 2px; border-radius: 4px; transition: background .15s; }
+#pf-sk:hover { background: rgba(77,157,224,.12); }
 #pf-r.spin  { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse-warn  { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
@@ -370,7 +374,15 @@ body.expanded #compact { top: auto; height: 52px; }
   <!-- Footer -->
   <div id="pf">
     <span id="pf-s">–</span>
-    <span id="pf-r">⟳</span>
+    <span id="pf-a">
+      <svg id="pf-sk" viewBox="0 0 16 16">
+        <title>Catálogo de skills</title>
+        <rect x="2" y="3"    width="12" height="2.1" rx="1.05" fill="currentColor"/>
+        <rect x="2" y="6.95" width="12" height="2.1" rx="1.05" fill="currentColor"/>
+        <rect x="2" y="10.9" width="8"  height="2.1" rx="1.05" fill="currentColor"/>
+      </svg>
+      <span id="pf-r">⟳</span>
+    </span>
   </div>
 
 </div>
@@ -909,6 +921,7 @@ document.getElementById('compact').addEventListener('click', (e) => {
 
 document.getElementById('ph-close').addEventListener('click', () => setExpanded(false));
 document.getElementById('pf-r').addEventListener('click', () => refresh(true));
+document.getElementById('pf-sk').addEventListener('click', () => window.claude.openSkills());
 
 document.getElementById('cp').addEventListener('click', async (e) => {
   e.stopPropagation();

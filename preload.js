@@ -10,5 +10,6 @@ contextBridge.exposeInMainWorld('claude', {
   panelState:    (expanded, height) => ipcRenderer.send('panel-state', { expanded, height }),
   restart:       ()          => ipcRenderer.send('restart-widget'),
   quit:          ()          => ipcRenderer.send('quit-app'),
+  openSkills:    ()          => ipcRenderer.send('open-skills'),
   onAutoRefresh: (cb)        => ipcRenderer.on('auto-refresh', cb),
 });
