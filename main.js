@@ -446,6 +446,11 @@ function openSkillsWindow() {
   skillsWin.webContents.on('did-fail-load', (e, code, desc) => {
     logError('Skills load failed', `${code} ${desc}`);
   });
+  // Parity with the widget window: log a crashed catalog renderer instead of it
+  // failing silently (the catalog would otherwise just vanish with no trace).
+  skillsWin.webContents.on('render-process-gone', (e, d) => {
+    logError('Skills renderer gone', JSON.stringify(d));
+  });
   skillsWin.loadFile('skills.html');
   skillsWin.on('closed', () => { skillsWin = null; });
 }
