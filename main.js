@@ -4,6 +4,7 @@ const os    = require('os');
 const fs    = require('fs');
 
 const { scanSkills } = require('./skills-scan');
+const { scanMcps }   = require('./mcp-scan');
 
 // Identifies the process in Task Manager (otherwise it's just "electron.exe").
 app.setName('Claude Usage Widget');
@@ -427,7 +428,7 @@ function openSkillsWindow() {
     height:          SKILLS_H,
     minWidth:        480,
     minHeight:       360,
-    title:           'Skills instaladas',
+    title:           'Catálogo',
     frame:           false,
     transparent:     true,
     resizable:       true,
@@ -435,7 +436,7 @@ function openSkillsWindow() {
     backgroundColor: '#00000000',
     show:            false,
     webPreferences: {
-      preload:              path.join(__dirname, 'skills-preload.js'),
+      preload:              path.join(__dirname, 'catalog-preload.js'),
       nodeIntegration:      false,
       contextIsolation:     true,
       backgroundThrottling: false,
@@ -444,14 +445,14 @@ function openSkillsWindow() {
 
   skillsWin.once('ready-to-show', () => skillsWin.show());
   skillsWin.webContents.on('did-fail-load', (e, code, desc) => {
-    logError('Skills load failed', `${code} ${desc}`);
+    logError('Catalog load failed', `${code} ${desc}`);
   });
   // Parity with the widget window: log a crashed catalog renderer instead of it
   // failing silently (the catalog would otherwise just vanish with no trace).
   skillsWin.webContents.on('render-process-gone', (e, d) => {
-    logError('Skills renderer gone', JSON.stringify(d));
+    logError('Catalog renderer gone', JSON.stringify(d));
   });
-  skillsWin.loadFile('skills.html');
+  skillsWin.loadFile('catalog.html');
   skillsWin.on('closed', () => { skillsWin = null; });
 }
 
@@ -466,6 +467,15 @@ ipcMain.handle('scan-skills', () => {
   } catch (e) {
     logError('scan-skills', e.message);
     return { skills: [], error: e.message };
+  }
+});
+
+ipcMain.handle('scan-mcps', () => {
+  try {
+    return { mcps: scanMcps({ onError: (src, msg) => logError(`scan-mcps:${src}`, msg) }) };
+  } catch (e) {
+    logError('scan-mcps', e.message);
+    return { mcps: [], error: e.message };
   }
 });
 
