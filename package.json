@@ -24,8 +24,9 @@
       "preload.js",
       "index.html",
       "skills-scan.js",
-      "skills-preload.js",
-      "skills.html",
+      "mcp-scan.js",
+      "catalog-preload.js",
+      "catalog.html",
       "icon.ico"
     ],
     "win": {

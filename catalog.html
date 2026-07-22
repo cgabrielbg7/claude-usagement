@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"/>
-<title>Skills instaladas</title>
+<title>Catálogo</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -50,13 +50,21 @@ html, body {
   padding: 11px 12px 10px 14px; border-bottom: 1px solid var(--sep);
   flex-shrink: 0; -webkit-app-region: drag;
 }
-#hdr-title {
+/* Las pestanas viven dentro de la zona arrastrable del header: sin su propio
+   no-drag el clic lo consume el arrastre de la ventana y no cambian nunca. */
+#tabs { display: flex; gap: 14px; -webkit-app-region: no-drag; }
+.tab {
   font-size: 12.5px; font-weight: 700; letter-spacing: .06em;
+  padding-bottom: 2px; cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent; transition: color .12s;
+}
+.tab:hover { color: var(--sub); }
+.tab.on {
   background: linear-gradient(90deg, #818cf8, #38bdf8);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
+  background-clip: text; border-bottom-color: #6d84f0;
 }
-#hdr-count { font-size: 10.5px; color: var(--muted); flex: 1; }
+#hdr-count { font-size: 10.5px; color: var(--muted); flex: 1; text-align: right; }
 #hdr-refresh, #hdr-close {
   -webkit-app-region: no-drag; cursor: pointer;
   padding: 3px 6px; border-radius: 5px; line-height: 1;
@@ -123,6 +131,25 @@ html, body {
 .sk-warn { font-size: 10px; color: #f59e0b; margin-top: 1px; }
 .hidden { display: none; }
 
+/* ── Fila de MCP ────────────────────────────────── */
+.mcp { padding: 5px 14px 6px 34px; }
+.mcp:hover { background: var(--hov); }
+.mcp-top { display: flex; align-items: center; gap: 6px; }
+.mcp-n { font-size: 11.5px; font-weight: 600; }
+.mcp-t {
+  font-size: 9px; color: var(--muted); padding: 1px 5px;
+  border: 1px solid var(--sep); border-radius: 4px;
+}
+.mcp-st { font-size: 10px; margin-left: auto; flex-shrink: 0; }
+.mcp-on  { color: #4ade80; }
+.mcp-off { color: var(--muted); }
+/* Un comando con muchos args o una URL larga no deben ensanchar la ventana. */
+.mcp-d {
+  font-size: 10.5px; color: var(--sub); line-height: 1.35; margin-top: 1px;
+  word-break: break-all;
+}
+.mcp-k { font-size: 9.5px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+
 #msg {
   padding: 40px 24px; text-align: center;
   font-size: 12px; color: var(--muted); line-height: 1.5;
@@ -133,14 +160,17 @@ html, body {
 <div id="wrap">
 
   <div id="hdr">
-    <span id="hdr-title">Skills instaladas</span>
+    <div id="tabs">
+      <span class="tab on" data-tab="skills">SKILLS</span>
+      <span class="tab"    data-tab="mcps">MCPs</span>
+    </div>
     <span id="hdr-count">–</span>
     <span id="hdr-refresh" title="Volver a escanear">⟳</span>
     <span id="hdr-close" title="Cerrar">✕</span>
   </div>
 
   <div id="search-row">
-    <input id="q" type="text" placeholder="Buscar skill por nombre o descripción…" autocomplete="off"/>
+    <input id="q" type="text" autocomplete="off"/>
   </div>
 
   <div id="list"><div id="msg">Escaneando…</div></div>
@@ -153,23 +183,14 @@ html, body {
 document.documentElement.setAttribute(
   'data-theme', localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
 
-let ALL      = [];
-let query    = '';
-const closed = new Set();   // claves de secciones/grupos colapsados
-
 const listEl  = document.getElementById('list');
 const countEl = document.getElementById('hdr-count');
+const qEl     = document.getElementById('q');
 
 function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
   ));
-}
-
-function matches(s) {
-  if (!query) return true;
-  const t = query.toLowerCase();
-  return s.name.toLowerCase().includes(t) || s.description.toLowerCase().includes(t);
 }
 
 function skillRow(s) {
@@ -179,8 +200,89 @@ function skillRow(s) {
   return `<div class="sk"><div class="sk-n">${esc(s.name)}</div>${desc}</div>`;
 }
 
+function mcpRow(m) {
+  if (!m.parsed) {
+    return `<div class="mcp"><div class="mcp-top"><span class="mcp-n">${esc(m.name)}</span></div>
+      <div class="sk-warn">no se pudo leer su configuración</div></div>`;
+  }
+
+  const tp = m.transport ? `<span class="mcp-t">${esc(m.transport)}</span>` : '';
+  const st = m.enabled
+    ? '<span class="mcp-st mcp-on">● activo</span>'
+    : '<span class="mcp-st mcp-off">○ apagado</span>';
+
+  // Solo los NOMBRES de las claves: el escaner nunca entrega los valores.
+  const keys = [
+    m.envKeys.length    ? 'env: '     + m.envKeys.join(', ')    : '',
+    m.headerKeys.length ? 'headers: ' + m.headerKeys.join(', ') : '',
+  ].filter(Boolean).join('   ·   ');
+
+  return `<div class="mcp">
+    <div class="mcp-top"><span class="mcp-n">${esc(m.name)}</span>${tp}${st}</div>
+    ${m.detail ? `<div class="mcp-d">${esc(m.detail)}</div>` : ''}
+    ${m.note   ? `<div class="mcp-k">${esc(m.note)}</div>`   : ''}
+    ${keys     ? `<div class="mcp-k">${esc(keys)}</div>`     : ''}
+  </div>`;
+}
+
+// El main devuelve {items, error}. Un error del escaneo se convierte en excepcion
+// para que lo atrape el mismo catch que un fallo del IPC y se pinte igual.
+function unwrap(key) {
+  return (res) => {
+    if (res.error) throw new Error(res.error);
+    return res[key];
+  };
+}
+
+// Cada pestana guarda lo suyo: sus datos, su busqueda y sus grupos colapsados.
+// data null significa "no escaneada todavia": la de MCPs no escanea hasta que la
+// abres. La fuente "flat" es la que se lista sin agrupar por plugin/proyecto.
+const TABS = {
+  skills: {
+    data: null, query: '', closed: new Set(),
+    row:   skillRow,
+    scan:  () => window.catalog.scanSkills().then(unwrap('skills')),
+    text:  (s) => s.name + ' ' + s.description,
+    unit:  (n) => `${n} skill${n === 1 ? '' : 's'}`,
+    flat:  'personal',
+    ph:    'Buscar skill por nombre o descripción…',
+    none:  'No se encontraron skills instaladas.<br/>' +
+           'Se buscó en ~/.claude/skills, los plugins instalados y los proyectos registrados.',
+    sections: [
+      ['personal', 'Personales', '~/.claude/skills'],
+      ['plugin',   'Plugins',    ''],
+      ['project',  'Proyectos',  ''],
+    ],
+  },
+  mcps: {
+    data: null, query: '', closed: new Set(),
+    row:   mcpRow,
+    scan:  () => window.catalog.scanMcps().then(unwrap('mcps')),
+    text:  (m) => m.name + ' ' + m.detail,
+    unit:  (n) => `${n} MCP${n === 1 ? '' : 's'}`,
+    flat:  'user',
+    ph:    'Buscar servidor MCP por nombre o comando…',
+    none:  'No se encontraron servidores MCP declarados.<br/>' +
+           'Se buscó en los plugins instalados, ~/.claude.json y los proyectos registrados.',
+    sections: [
+      ['user',    'Usuario',   '~/.claude.json'],
+      ['plugin',  'Plugins',   ''],
+      ['project', 'Proyectos', ''],
+    ],
+  },
+};
+
+let tab = 'skills';
+function T() { return TABS[tab]; }
+
+function matches(item) {
+  const q = T().query;
+  if (!q) return true;
+  return T().text(item).toLowerCase().includes(q.toLowerCase());
+}
+
 // Al buscar, todo se muestra abierto: colapsar esconderia coincidencias.
-function isClosed(key) { return !query && closed.has(key); }
+function isClosed(key) { return !T().query && T().closed.has(key); }
 
 function section(key, title, count, note, inner) {
   const cls = isClosed(key) ? ' closed' : '';
@@ -195,24 +297,24 @@ function section(key, title, count, note, inner) {
   </div>`;
 }
 
-function group(key, title, version, skills) {
+function group(key, title, version, items) {
   const cls = isClosed(key) ? ' closed' : '';
   const ver = version ? `<span class="grp-v">v${esc(version)}</span>` : '';
   return `<div class="grp">
     <div class="grp-h${cls}" data-key="${esc(key)}">
       <span class="caret">▼</span>
       <span class="grp-t">${esc(title)}</span>${ver}
-      <span class="grp-n">(${skills.length})</span>
+      <span class="grp-n">(${items.length})</span>
     </div>
-    <div class="grp-b${isClosed(key) ? ' hidden' : ''}">${skills.map(skillRow).join('')}</div>
+    <div class="grp-b${isClosed(key) ? ' hidden' : ''}">${items.map(T().row).join('')}</div>
   </div>`;
 }
 
 function byName(a, b) { return a.name.localeCompare(b.name); }
 
-function groupBy(skills) {
+function groupBy(items) {
   const map = new Map();
-  for (const s of skills) {
+  for (const s of items) {
     if (!map.has(s.group)) map.set(s.group, []);
     map.get(s.group).push(s);
   }
@@ -220,45 +322,38 @@ function groupBy(skills) {
 }
 
 function render() {
-  const shown = ALL.filter(matches);
+  const all   = T().data || [];
+  const shown = all.filter(matches);
 
-  countEl.textContent = query
-    ? `${shown.length} de ${ALL.length}`
-    : `${ALL.length} skill${ALL.length === 1 ? '' : 's'}`;
+  countEl.textContent = T().query
+    ? `${shown.length} de ${all.length}`
+    : T().unit(all.length);
 
-  if (!ALL.length) {
-    listEl.innerHTML = '<div id="msg">No se encontraron skills instaladas.<br/>' +
-      'Se buscó en ~/.claude/skills, los plugins instalados y los proyectos registrados.</div>';
+  if (!all.length) {
+    listEl.innerHTML = `<div id="msg">${T().none}</div>`;
     return;
   }
   if (!shown.length) {
-    listEl.innerHTML = `<div id="msg">Sin coincidencias para «${esc(query)}».</div>`;
+    listEl.innerHTML = `<div id="msg">Sin coincidencias para «${esc(T().query)}».</div>`;
     return;
   }
 
-  const personal = shown.filter((s) => s.source === 'personal').sort(byName);
-  const plugins  = groupBy(shown.filter((s) => s.source === 'plugin'));
-  const projects = groupBy(shown.filter((s) => s.source === 'project'));
-
   let html = '';
 
-  if (personal.length) {
-    html += section('sec:personal', 'Personales', personal.length,
-                    '~/.claude/skills', personal.map(skillRow).join(''));
-  }
+  for (const [src, title, note] of T().sections) {
+    const items = shown.filter((s) => s.source === src);
+    if (!items.length) continue;
 
-  if (plugins.length) {
-    const total = plugins.reduce((n, [, arr]) => n + arr.length, 0);
-    const inner = plugins.map(([name, arr]) =>
-      group('plg:' + name, name, arr[0].version, arr.slice().sort(byName))).join('');
-    html += section('sec:plugins', 'Plugins', total, '', inner);
-  }
+    // Las claves de colapso llevan la pestana adentro: skills y MCPs comparten
+    // nombres de plugin y si no, colapsar un grupo en una colapsaria el otro.
+    const key = `${tab}:${src}`;
 
-  if (projects.length) {
-    const total = projects.reduce((n, [, arr]) => n + arr.length, 0);
-    const inner = projects.map(([name, arr]) =>
-      group('prj:' + name, name, '', arr.slice().sort(byName))).join('');
-    html += section('sec:projects', 'Proyectos', total, '', inner);
+    const inner = src === T().flat
+      ? items.slice().sort(byName).map(T().row).join('')
+      : groupBy(items).map(([name, arr]) =>
+          group(`${key}:${name}`, name, arr[0].version, arr.slice().sort(byName))).join('');
+
+    html += section(key, title, items.length, note, inner);
   }
 
   listEl.innerHTML = html;
@@ -267,39 +362,64 @@ function render() {
 // Colapsar / expandir por delegacion: el HTML se regenera en cada render.
 listEl.addEventListener('click', (e) => {
   const head = e.target.closest('.sec-h, .grp-h');
-  if (!head || query) return;          // durante una busqueda no se colapsa
+  if (!head || T().query) return;      // durante una busqueda no se colapsa
   const key = head.dataset.key;
-  if (closed.has(key)) closed.delete(key); else closed.add(key);
+  if (T().closed.has(key)) T().closed.delete(key); else T().closed.add(key);
   render();
 });
 
-document.getElementById('q').addEventListener('input', (e) => {
-  query = e.target.value.trim();
+qEl.addEventListener('input', (e) => {
+  T().query = e.target.value.trim();
   render();
 });
 
-document.getElementById('hdr-close').addEventListener('click', () => window.skills.close());
+document.getElementById('hdr-close').addEventListener('click', () => window.catalog.close());
 
 async function load() {
-  const btn = document.getElementById('hdr-refresh');
+  const btn  = document.getElementById('hdr-refresh');
+  const from = tab;                    // la pestana puede cambiar mientras escanea
   btn.classList.add('spin');
   try {
-    const res = await window.skills.scan();
-    if (res.error) {
-      listEl.innerHTML = `<div id="msg">No se pudo escanear.<br/>${esc(res.error)}</div>`;
-      countEl.textContent = '–';
-      return;
-    }
-    ALL = res.skills;
-    render();
+    const data = await TABS[from].scan();
+    TABS[from].data = data;
+    if (tab === from) render();
   } catch (e) {
-    listEl.innerHTML = `<div id="msg">No se pudo escanear.<br/>${esc(e.message)}</div>`;
+    TABS[from].data = [];
+    if (tab === from) {
+      listEl.innerHTML = `<div id="msg">No se pudo escanear.<br/>${esc(e.message)}</div>`;
+      countEl.textContent = '–';
+    }
   } finally {
     btn.classList.remove('spin');
   }
 }
 
+function show(next) {
+  if (next === tab) return;
+  tab = next;
+  for (const el of document.querySelectorAll('.tab')) {
+    el.classList.toggle('on', el.dataset.tab === tab);
+  }
+  qEl.placeholder = T().ph;
+  qEl.value       = T().query;
+
+  if (T().data === null) {
+    listEl.innerHTML = '<div id="msg">Escaneando…</div>';
+    countEl.textContent = '–';
+    load();
+  } else {
+    render();
+  }
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const el = e.target.closest('.tab');
+  if (el) show(el.dataset.tab);
+});
+
 document.getElementById('hdr-refresh').addEventListener('click', load);
+
+qEl.placeholder = T().ph;
 load();
 </script>
 </body>
