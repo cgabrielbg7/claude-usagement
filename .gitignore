@@ -3,3 +3,4 @@ error.log
 *.log
 dist/
 out/
+.claude/
