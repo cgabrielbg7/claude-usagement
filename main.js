@@ -27,12 +27,29 @@ const CLAUDE_JSON = path.join(os.homedir(), '.claude.json');
 const PREFS       = path.join(os.homedir(), '.claude', 'widget-prefs.json');
 const LOG_FILE    = path.join(os.homedir(), '.claude', 'widget-error.log');
 
-// Fallback versions if usage history has no resolved id for a family yet.
-// Update when a new model generation ships.
-const FALLBACK_VERSION = { opus: '4.8', sonnet: '4.6', haiku: '4.5' };
+// Known-latest version per family. Acts as a floor over whatever usage history
+// resolves to (see resolveModelVersion) — history can lag behind a newly shipped
+// generation (e.g. old "sonnet-4-6" entries lingering after the account moved to
+// "sonnet-5"), so the higher of the two always wins. Update when a new model
+// generation ships.
+const FALLBACK_VERSION = { opus: '4.8', sonnet: '5', haiku: '4.5' };
 // Claude Code's "default" model resolves to this family — so the widget shows the
-// real model (e.g. "Sonnet 4.6") instead of just "Default". Update if the default changes.
+// real model (e.g. "Sonnet 5") instead of just "Default". Update if the default changes.
 const DEFAULT_FAMILY = 'sonnet';
+
+// Compares two "major[.minor]" version strings and returns the higher one
+// (string form preserved, so a bare major like "5" isn't padded to "5.0").
+function higherVersion(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0, nb = pb[i] || 0;
+    if (na !== nb) return na > nb ? a : b;
+  }
+  return a;
+}
 const API_BASE   = 'https://api.anthropic.com';
 const COMPACT_H  = 52;
 const EXPANDED_H = 450;
@@ -89,23 +106,27 @@ function readCredentials() {
   }
 }
 
-// Highest resolved version (e.g. "4.8") seen for a model family across Claude Code's
-// per-project usage history, so an alias like "opus" can be shown with its real
-// version. Returns null if the family never appears in the history.
+// Highest resolved version (e.g. "4.8", or a bare "5" for single-number
+// generations) seen for a model family across Claude Code's per-project usage
+// history, so an alias like "opus" can be shown with its real version. The
+// minor group is capped at 2 digits and must not be followed by another digit,
+// so it can't swallow part of a trailing date suffix (e.g. "...-4-5-20251001"
+// resolves to "4.5", not "4.20251001"). Returns null if the family never
+// appears in the history.
 function resolveModelVersion(family) {
   try {
     const projects = JSON.parse(fs.readFileSync(CLAUDE_JSON, 'utf8')).projects || {};
-    const re = new RegExp(`claude-${family}-(\\d+)-(\\d+)`);
+    const re = new RegExp(`claude-${family}-(\\d+)(?:-(\\d{1,2})(?!\\d))?`);
     let best = null;
     for (const proj of Object.values(projects)) {
       for (const id of Object.keys(proj?.lastModelUsage || {})) {
         const m = id.match(re);
         if (!m) continue;
-        const v = [parseInt(m[1], 10), parseInt(m[2], 10)];
-        if (!best || v[0] > best[0] || (v[0] === best[0] && v[1] > best[1])) best = v;
+        const ver = m[2] !== undefined ? `${m[1]}.${m[2]}` : m[1];
+        best = higherVersion(best, ver);
       }
     }
-    return best ? `${best[0]}.${best[1]}` : null;
+    return best;
   } catch {
     return null;
   }
@@ -115,7 +136,7 @@ function resolveModelVersion(family) {
 // Resolves aliases ("opus") to a versioned label ("Opus 4.8"); full ids carry
 // their own version; "1m" context and the opusplan variant are annotated. When the
 // setting is the default (unset or "default"), resolves to the real default model
-// (e.g. "Sonnet 4.6 · Auto") instead of just showing "Default".
+// (e.g. "Sonnet 5 · Auto") instead of just showing "Default".
 function readModelLabel() {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(SETTINGS, 'utf8')).model || null; }
@@ -135,9 +156,9 @@ function readModelLabel() {
   const oneM = key.includes('[1m]')     ? ' 1M'   : '';
   const plan = key.includes('opusplan') ? ' · Plan' : '';
 
-  const inline = key.match(/(\d+)-(\d+)/);
-  const ver = inline ? `${inline[1]}.${inline[2]}`
-                     : resolveModelVersion(fam) || FALLBACK_VERSION[fam] || null;
+  const inline = key.match(/(\d+)(?:-(\d{1,2})(?!\d))?/);
+  const ver = inline ? (inline[2] !== undefined ? `${inline[1]}.${inline[2]}` : inline[1])
+                     : higherVersion(resolveModelVersion(fam), FALLBACK_VERSION[fam]);
 
   const base = ver ? `${Fam} ${ver}${oneM}${plan}` : `${Fam}${oneM}${plan}`;
   return isDefault ? `${base} · Auto` : base;
