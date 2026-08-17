@@ -2,7 +2,7 @@
 
 An always-on-top desktop widget for Windows that shows your Claude plan usage in real time — 5-hour limit, weekly usage, and extra credits.
 
-<!-- Add a screenshot or preview.gif here and reference it: ![Widget preview](preview.gif) -->
+![Claude Usagement widget](preview.gif)
 
 ## Getting started
 
